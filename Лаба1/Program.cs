@@ -1,72 +1,90 @@
 ﻿using System;
 using System.Linq;
+using System.IO;
 
 namespace Лаба1
 {
     public class Program
     {
-        static List<SystemTask> FCFS_Tasks = new List<SystemTask>() {
-            new SystemTask("p0",6,0,0),
-            new SystemTask("p1",2,2,0),
-            new SystemTask("p2",7,6,0),
-            new SystemTask("p3",5,0,0),
-            };
-
-        static List<SystemTask> RR_Tasks = new List<SystemTask>() {
-            new SystemTask("p0",6,0,0),
-            new SystemTask("p1",2,2,0),
-            new SystemTask("p2",7,6,0),
-            new SystemTask("p3",5,0,0),
-            };
-
-        static List<SystemTask> SJF_Tasks = new List<SystemTask>() {
-            new SystemTask("p0",6,0,0),
-            new SystemTask("p1",2,2,0),
-            new SystemTask("p2",7,6,0),
-            new SystemTask("p3",5,0,0),
-            };
+        private static string savePath = Environment.ProcessPath.Substring(0, Environment.ProcessPath.LastIndexOf('\\')) + "\\Processes.txt";
 
         static void Main(string[] args)
         {
-            MakeFCFSProcess();
-            MakeRRProcess();
-            MakeSJFProcess();
+            MakeFCFSProcess(GetTasksFromFile());
+            MakeRRProcess(GetTasksFromFile());
+            MakeSJFProcess(GetTasksFromFile());
 
             Console.ReadKey();
         }
 
-        private static void MakeFCFSProcess()
+        private static List<SystemTask> GetTasksFromFile()
         {
-            FCFSProcessor processor = new FCFSProcessor(FCFS_Tasks);
+            List<SystemTask> result = new List<SystemTask>();
+
+            if (!File.Exists(savePath))
+                LoadDefaultSaveFile();
+
+            foreach (var item in File.ReadAllLines(savePath))
+                result.Add(SystemTask.Parse(item));
+
+            if (result.Count==0)
+            {
+                LoadDefaultSaveFile();
+                return GetTasksFromFile();
+            }
+
+            return result;
+        }
+
+        private static void LoadDefaultSaveFile()
+        {
+            if (File.Exists(savePath))
+                File.Delete(savePath);
+
+            File.Create(savePath).Close();
+
+            List<string> lines = new List<string>() {
+            "p0|6|0|0",
+            "p1|2|2|0",
+            "p2|7|6|0",
+            "p3|5|0|0",
+            };
+
+            File.WriteAllLines(savePath, lines);
+        }
+
+        private static void MakeFCFSProcess(List<SystemTask> tasks)
+        {
+            FCFSProcessor processor = new FCFSProcessor(tasks);
 
             processor.StartProcess();
 
-            Console.WriteLine("\n\nFCFS:");
-            foreach (var item in FCFS_Tasks)
+            Console.WriteLine("FCFS:");
+            foreach (var item in tasks)
                 Console.WriteLine(item.ToString());
             Console.WriteLine($"Эффектикность: {processor.Efficiency}");
         }
 
-        private static void MakeRRProcess()
+        private static void MakeRRProcess(List<SystemTask> tasks)
         {
-            RRProcessor processor = new RRProcessor(RR_Tasks,1);
+            RRProcessor processor = new RRProcessor(tasks, 1);
 
             processor.StartProcess();
 
             Console.WriteLine("\n\nRR:");
-            foreach (var item in RR_Tasks)
+            foreach (var item in tasks)
                 Console.WriteLine(item.ToString());
             Console.WriteLine($"Эффектикность: {processor.Efficiency}");
         }
 
-        private static void MakeSJFProcess()
+        private static void MakeSJFProcess(List<SystemTask> tasks)
         {
-            FCFSProcessor processor = new FCFSProcessor(SJF_Tasks);
+            SJFProcessor processor = new SJFProcessor(tasks);
 
             processor.StartProcess();
 
             Console.WriteLine("\n\nSJF:");
-            foreach (var item in SJF_Tasks)
+            foreach (var item in tasks)
                 Console.WriteLine(item.ToString());
             Console.WriteLine($"Эффектикность: {processor.Efficiency}");
         }
@@ -88,7 +106,7 @@ namespace Лаба1
         public int Priority { get { return priority; } }
         public int ExecuteTimes { get { return executeTimes; } }
 
-        public SystemTask(string Name,int ExecuteTimes,int TimeDelay = 0, int Priority = 0)
+        public SystemTask(string Name, int ExecuteTimes, int TimeDelay = 0, int Priority = 0)
         {
             name=Name;
             timeDelay = TimeDelay;
@@ -134,6 +152,13 @@ namespace Лаба1
         {
             return $"{name} | {startExecuteTimes} | {priority} | {startTimeDelay} | {outString}";
         }
+
+        public static SystemTask Parse(string item)
+        {
+            string[] args = item.Split('|');
+
+            return new SystemTask(args[0], int.Parse(args[1]), int.Parse(args[2]), int.Parse(args[3]));
+        }
     }
 
     public class SJFProcessor
@@ -158,7 +183,7 @@ namespace Лаба1
 
             while (currentExecutionTasks.Count != 0)//Пока есть текущие задачи
             {
-                for(int i=0;i<currentExecutionTasks.Count;i++)//Перечисляем отсортированные текущие задачи
+                for (int i = 0; i<currentExecutionTasks.Count; i++)//Перечисляем отсортированные текущие задачи
                 {
                     if (i==0)
                         currentExecutionTasks[i].Execute();//Выполняем первую текущую задачу
@@ -184,7 +209,7 @@ namespace Лаба1
 
                 if (item.IsValid())//Если задача готова к началу работы, то добавляем в текущие
                     currentExecutionTasks.Add(item);
-                else if(item.TimeDelay>0)//Если не готова, то уменьшаем ей задержку до выполнения
+                else if (item.TimeDelay>0)//Если не готова, то уменьшаем ей задержку до выполнения
                     item.TimeDecrease();
             }
 
@@ -231,7 +256,7 @@ namespace Лаба1
                     if (i==0)
                         currentExecutionTasks[i].Execute();//Выполняем первую текущую задачу
                     else
-                    { 
+                    {
                         currentExecutionTasks[i].Wait();//Остальные задачи ожидают
                         totalWaiters++;
                     }
@@ -282,7 +307,7 @@ namespace Лаба1
         private int lastIndex = 0;
         private int lastStep = 0;
 
-        public RRProcessor(List<SystemTask> AllTasks,int step)
+        public RRProcessor(List<SystemTask> AllTasks, int step)
         {
             allTasks = new List<SystemTask>(AllTasks);
             maxStep = step;
@@ -300,7 +325,7 @@ namespace Лаба1
                     lastIndex++;
                 }
 
-                if(lastIndex>=currentExecutionTasks.Count)
+                if (lastIndex>=currentExecutionTasks.Count)
                     lastIndex = 0;
 
                 for (int i = 0; i<currentExecutionTasks.Count; i++)//Перечисляем отсортированные текущие задачи
@@ -311,7 +336,7 @@ namespace Лаба1
                         lastStep++;
                     }
                     else
-                    { 
+                    {
                         currentExecutionTasks[i].Wait();//Остальные задачи ожидают
                         totalWaiters++;
                     }
